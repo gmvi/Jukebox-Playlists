@@ -1,0 +1,19 @@
+{
+  "scripts": {
+    "serve": "bunx wrangler dev --live-reload src/index.tsx",
+    "dev": "bun run serve",
+    "init-db-local": "bunx wrangler d1 execute jukebox-playlists --local --file=dev/db.sql"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.4.1",
+    "@oslojs/crypto": "^1.0.1",
+    "@oslojs/encoding": "^1.1.0",
+    "arctic": "^2.0.1",
+    "hono": "^4.6.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240423.0",
+    "wrangler": "^3.47.0"
+  }
+}
