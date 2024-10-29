@@ -1,11 +1,76 @@
+import { getProviderUserId, userProfileFromOAuth } from './auth/providers'
+
 export interface Session {
-  id: string;
-  userId: number;
-  expiry: Date;
+  session_id: string;
+  user_id: number;
+  expiry: Date|null;
+  expiry_ms: number|undefined;
 }
 
 export interface User {
-  id: number;
+  user_id: string;
+  display_name: string;
+}
+
+const SELECT_OAUTH_LINK = `
+  SELECT user.*
+  FROM oauth_link INNER JOIN user ON oauth_link.user_id = user.user_id
+  WHERE provider = ? and provider_user_id = ?
+  LIMIT 1;`
+export async function lookupOAuthLink(c, provider: string, claims) {
+  let providerUserId
+  switch (provider) {
+    case 'google':
+      providerUserId = claims.sub
+      break
+    case 'spotify':
+      providerUserId = claims.id
+      break
+    default:
+      return null
+  }
+  return c.env.DB.prepare(SELECT_OAUTH_LINK)
+    .bind(provider, providerUserId)
+    .first<User>()
+}
+
+const INSERT_OAUTH_LINK = `
+  INSERT INTO oauth_link
+    (user_id, provider, provider_user_id)
+    VALUES (?, ?, ?);`
+export async function registerOAuthLink(c, userId: string, provider: string, claims: any) {
+  console.log(userId, provider, claims.id)
+  return c.env.DB.prepare(INSERT_OAUTH_LINK)
+    .bind(userId, provider, getProviderUserId(provider, claims))
+    .run()
+}
+
+const DELETE_OAUTH_LINK = `DELETE FROM oauth_link WHERE user_id = ? and provider = ?;`
+export async function unregisterOAuthLink(c, userId: string, provider: string) {
+  return c.env.DB.prepare(DELETE_OAUTH_LINK)
+    .bind(userId, provider)
+    .run()
+}
+
+export async function registerUserFromOAuthLink(c, provider: string, claims: any) {
+  let user = await createUser(c, await userProfileFromOAuth(provider, claims))
+  await registerOAuthLink(c, user.user_id, provider, claims)
+  return user
+}
+
+const INSERT_USER_OAUTH = `INSERT INTO user (user_id, display_name) VALUES (?, ?);`
+const CHECK_USER_EXISTS = `SELECT user_id FROM user WHERE user_id = ? LIMIT 1;`
+export async function createUser(c, user: User) {
+  let id = createId(6, (candidate) => {
+    // TODO: check for bad words
+    let exists = await c.env.DB.prepare(CHECK_USER_EXISTS).bind(candidate).first()
+    return exists == null
+  })
+  user.user_id = id
+  await c.env.DB.prepare(INSERT_USER_OAUTH)
+    .bind(userId, user.display_name)
+    .run()
+  return user
 }
 
 export interface Playlist {
@@ -26,10 +91,10 @@ export interface PlaylistFallback {
 }
 
 export async function getPlaylistTitle(c, id: number) {
-  let db = c.env.DB
-  return db.prepare('SELECT title FROM playlist where id = ?;')
-           .bind(id)
-           .first('title')
+  return c.env.DB
+    .prepare('SELECT title FROM playlist where id = ? LIMIT 1;')
+    .bind(id)
+    .first('title')
 }
 
 export async function getPlaylist(ctx, id: number) {

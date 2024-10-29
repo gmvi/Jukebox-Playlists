@@ -10,15 +10,15 @@ help: ## Print this help message
 
 .PHONY: serve
 serve: ## Run the local dev server
-	bun run serve
+	bunx wrangler dev --live-reload src/index.tsx
 
 .PHONY: init-db-local
 init-db-local: ## (Re-)Initialize the local dev database
-	bun run init-db-local
+	bunx wrangler d1 execute jukebox-playlists --local --file=dev/db.sql
 
-.PHONY: deploy
-deploy: ## Deploy the dev server
-	bunx wrangler deploy --minify src/index.tsx
+.PHONY: deploy-staging
+deploy-staging: ## Deploy the dev server
+	bunx wrangler deploy --minify src/index.tsx --env staging
 
 .PHONY: create-db-staging
 create-db-staging: ## Create the dev database
@@ -28,8 +28,6 @@ create-db-staging: ## Create the dev database
 test-db-init: ## Test the dev database init file
 	sqlite3 :memory: '.read dev/db.sql' || echo 'Failed to dry-run ./dev/db.sql!'
 
-.PHONY: test-db-staging
+.PHONY: init-db-staging
 init-db-staging: ## (Re-)Initialize the dev database
-	# d1 execute --remote does not accept comments
-	# though I'm not sure why the 2nd slash in the below sed command disappears
-	cat dev/db.sql | sed -E 's/ ?--.*$///' | bunx wrangler d1 execute jukebox-playlists --remote --file=/dev/stdin
+	bunx wrangler d1 execute jukebox-playlists --remote --file=dev/db.sql

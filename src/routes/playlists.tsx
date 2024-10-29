@@ -7,7 +7,7 @@ import {
   getPlaylistTitle, getPlaylist, add_tracks_to_playlist,
 } from '../datamodels'
 
-import Playlist from '../components/playlist'
+import PlaylistLayout from '../layouts/playlist-layout'
 import Player from '../components/player'
 
 
@@ -18,7 +18,6 @@ router.mountpoint = '/'
 router.get('/player/:song', async (c) => {
   const song = decodeURIComponent(c.req.param('song'))
   const title = c.req.query('playlist_title')
-  console.log(song)
   return c.html(<Player song={song} title={title} />)
 })
 
@@ -41,13 +40,14 @@ router.get('/playlist/:id', async (c) => {
   const id = c.req.param('id')
   const title = await getPlaylistTitle(c, id)
   const tracks = await getPlaylist(c, id)
-  const song = tracks[0]?.song
+  const user = c.get('user')
 
-  return c.render({
-      title: title,
-      playlist: <Playlist data_id={id} title={title} tracks={tracks} />,
-      player: <Player title={title} song={song} />
-  })
+  return c.render(<PlaylistLayout
+    data_id={id}
+    title={title}
+    tracks={tracks}
+    position={0}
+  />)
 })
 
 

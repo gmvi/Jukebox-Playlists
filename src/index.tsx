@@ -1,28 +1,44 @@
 import { Hono } from 'hono'
 import { html } from 'hono/html'
-import { jsxRenderer } from 'hono/jsx-renderer'
+import { jsxRenderer, useRequestContext } from 'hono/jsx-renderer'
 import { logger } from 'hono/logger'
 import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
+import { serveStatic } from '@hono/node-server/serve-static'
 
 import Playlist from './components/playlist'
 import Player from './components/player'
+import AccountMenu from './components/account-menu'
 
 import { attachRoutes, attachDevRoutes } from './routes'
 import { getPlaylistTitle, getPlaylist } from './datamodels'
 import type { AppContext, Bindings } from './types'
-import { AuthMiddleware, InitializeLucia } from './auth'
+import { AuthMiddleware } from './auth'
+import { ORIGIN } from './util'
+import LandingLayout from './layouts/landing-layout'
 
+const READONLY_METHODS = [ 'GET', 'HEAD', 'OPTIONS' ]
+const WRITE_METHODS = [ 'POST', 'PUT', 'PATCH', 'DELETE' ]
 
 /* Hono app and middleware */
 
 const app = new Hono<AppContext>()
 
+const CSRFProtection = (c: AppContext, next: () => Promise) => {
+  if (WRITE_METHODS.includes(c.req.method)) {
+    console.log('Origin:', c.req.header('Origin'))
+    if (c.req.header('Origin') != ORIGIN(c)) {
+      return c.status(403).json({ error: 'CSRF protection' })
+    }
+  }
+  return next()
+}
+
 app.use(logger())
 //   .use(cors())
-   .use(InitializeLucia)
-   .get('/health', c => c.json({ status: 'ok' }))
-   .use(AuthMiddleware)
+  .get('/health', c => c.json({ status: 'ok' }))
+  .use(CSRFProtection)
+  .use(AuthMiddleware)
 
 //app.use('*', async (c, next) => {
 //  let lucia = initializeLucia(c.env.DB)
@@ -30,9 +46,7 @@ app.use(logger())
 //})
 
 
-// jsxRenderer? or layout?
-app.use('*', jsxRenderer(({ children }) => {
-  let { title, player, playlist } = children
+app.use(jsxRenderer(({ children }) => {
   return html`
     <html>
       <head>
@@ -49,22 +63,32 @@ app.use('*', jsxRenderer(({ children }) => {
         <!--<script src="https://open.spotify.com/embed/iframe-api/v1"></script>-->
 
         <title>Jukebox Playlists</title>
+        <link rel="stylesheet" href="/static/google-signin.css" />
       </head>
       <body style="height: 100%;">
-        <div class="m-4" style="margin-bottom: 360px">
-          <h1 class="text-2xl font-bold mb-4">
-            <a href="/">Cross-platform Playlist Demo</a>
-          </h1>
-          ${playlist}
-        </div>
-        <footer class="w-full bg-slate-300 fixed inset-x-0 bottom-0">
-          ${player}
-        </footer>
+        ${children}
       </body>
     </html>`
 }))
+  //let accountMenu = <AccountMenu user={user} />
+  //console.log('AccountMenu:', accountMenu)
+        //<header>
+        //  <nav>
+        //  </nav>
+        //</header>
+        //<main>
+        //  ${main}
+        //</main>
+        //<footer id="footer-player">
+        //</footer>
 
-app.get('/', c => c.redirect('/playlist/1'))
+app.get('/', (c) => {
+  if (c.get('user')) {
+    return c.redirect('/playlist/1')
+  } else {
+    return c.html(<LandingLayout />)
+  }
+})
 
 attachRoutes(app)
 attachDevRoutes(app)

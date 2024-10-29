@@ -1,10 +1,6 @@
 {
-  "scripts": {
-    "serve": "bunx wrangler dev --live-reload src/index.tsx",
-    "dev": "bun run serve",
-    "init-db-local": "bunx wrangler d1 execute jukebox-playlists --local --file=dev/db.sql"
-  },
   "dependencies": {
+    "@hono/node-server": "^1.13.3",
     "@hono/zod-validator": "^0.4.1",
     "@oslojs/crypto": "^1.0.1",
     "@oslojs/encoding": "^1.1.0",

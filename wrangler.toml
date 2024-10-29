@@ -1,7 +1,10 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "jukebox-playlists"
 #main = "src/index.ts"
-compatibility_date = "2024-04-23"
+compatibility_date = "2024-09-23"
+compatibility_flags = [ "nodejs_compat" ]
+
+assets = { directory = "./public/" }
 
 # Automatically place your workloads in an optimal location to minimize latency.
 # If you are running back-end logic in a Worker, running it closer to your back-end infrastructure
@@ -21,12 +24,22 @@ compatibility_date = "2024-04-23"
 ENVIRONMENT = "dev"
 DEV_PORT = '8787'
 
-[env.production]
-ENVIRONMENT = "production"
+[[d1_databases]]
+binding = "DB"
+database_name = "jukebox-playlists"
+database_id = "83eec345-b474-4da1-9ec7-08b6bd634eb5"
+preview_database_id = "local-jukebox-playlists"
 
 [env.staging]
+[env.staging.vars]
 ENVIRONMENT = "production"
 STAGING = "true"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "jukebox-playlists"
+database_id = "83eec345-b474-4da1-9ec7-08b6bd634eb5"
+preview_database_id = "local-jukebox-playlists"
 
 # Bind the Workers AI model catalog. Run machine learning models, powered by serverless GPUs, on Cloudflare’s global network
 # Docs: https://developers.cloudflare.com/workers/wrangler/configuration/#workers-ai
@@ -116,3 +129,4 @@ preview_database_id = "local-jukebox-playlists"
 # [[vectorize]]
 # binding = "MY_INDEX"
 # index_name = "my-index"
+
