@@ -6,6 +6,7 @@
     "@oslojs/encoding": "^1.1.0",
     "arctic": "^2.0.1",
     "hono": "^4.6.4",
+    "obscenity": "^0.4.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

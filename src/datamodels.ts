@@ -1,3 +1,4 @@
+import { createId } from './util'
 import { getProviderUserId, userProfileFromOAuth } from './auth/providers'
 
 export interface Session {
@@ -60,17 +61,15 @@ export async function registerUserFromOAuthLink(c, provider: string, claims: any
 
 const INSERT_USER_OAUTH = `INSERT INTO user (user_id, display_name) VALUES (?, ?);`
 const CHECK_USER_EXISTS = `SELECT user_id FROM user WHERE user_id = ? LIMIT 1;`
-export async function createUser(c, user: User) {
-  let id = createId(6, (candidate) => {
-    // TODO: check for bad words
-    let exists = await c.env.DB.prepare(CHECK_USER_EXISTS).bind(candidate).first()
-    return exists == null
+export async function createUser(c, profile: User) {
+  profile.user_id = await createId(6, async (candidate) => {
+    if (checkBadWords(candidate)) return false
+    return null == await c.env.DB.prepare(CHECK_USER_EXISTS).bind(candidate).first()
   })
-  user.user_id = id
-  await c.env.DB.prepare(INSERT_USER_OAUTH)
-    .bind(userId, user.display_name)
+  let result = await c.env.DB.prepare(INSERT_USER_OAUTH)
+    .bind(profile.user_id, profile.display_name)
     .run()
-  return user
+  return result.meta.changes == 1 ? profile : null
 }
 
 export interface Playlist {
