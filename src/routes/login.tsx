@@ -5,7 +5,7 @@ import {
   type OAuth2Tokens
 } from "arctic"
 
-import { _google, _spotify } from '../auth/providers'
+import { getProvider } from '../auth/providers'
 import {
   generateSessionToken, createSession, deleteSession, invalidateSession,
   validateSessionToken
@@ -38,7 +38,7 @@ router.delete('/', async (c) => {
 })
 
 router.get('/google', async (c) => {
-  const google = _google(c)
+  const google = getProvider(c, 'google')
   const state = generateState()
   const codeVerifier = generateCodeVerifier()
   const url = await google.createAuthorizationURL(state, codeVerifier, ['openid', 'profile'])
@@ -60,7 +60,7 @@ router.get('/google', async (c) => {
 })
 
 router.get('/google/callback', async (c) => {
-  const google = _google(c)
+  const google = getProvider(c, 'google');
   const { code, state } = c.req.query()
   const storedState = getCookie(c, "google_oauth_state")
   const verifier = getCookie(c, "google_code_verifier")
@@ -81,18 +81,68 @@ router.get('/google/callback', async (c) => {
   return c.redirect('/')
 })
 
+const spotifyScopes = [/*'user-read-email'*/]
 router.get('/spotify', async (c) => {
-  const spotify = _spotify(c)
+  const spotify = getProvider(c, 'spotify')
   const state = generateState()
-  const codeVerifier = generateCodeVerifier()
-  const url = await spotify.createAuthorizationURL(state, ['user-read-email'])
+  //const codeVerifier = generateCodeVerifier()
+  const url = await spotify.createAuthorizationURL(state, [])
   setCookie(c, 'spotify_oauth_state', state, {
     httpOnly: true,
     secure: isProd(c),
     maxAge: 60 * 10,
     sameSite: 'lax',
   })
-  setCookie(c, 'spotify_code_verifier', codeVerifier, {
+  /*setCookie(c, 'spotify_code_verifier', codeVerifier, {
+    httpOnly: true,
+    secure: isProd(c),
+    maxAge: 60 * 10,
+    sameSite: 'lax',
+  })*/
+  return c.redirect(url)
+})
+
+router.get('/spotify/callback', async (c) => {
+  const spotify = getProvider(c, 'spotify')
+  const { code, state } = c.req.query()
+  const storedState = getCookie(c, "spotify_oauth_state")
+  //const verifier = getCookie(c, "spotify_code_verifier")
+  if (state != storedState || [code, state/*, verifier*/].includes(undefined)) {
+    console.log("Bad cookie?")
+    return new Response(null, { status: 400 })
+  }
+  let claims = {}
+  try {
+    let tokens: OAuth2Tokens = await spotify.validateAuthorizationCode(code)
+    claims.accessToken = tokens.accessToken()
+    claims.accessTokenExpiry = tokens.accessTokenExpiresAt()
+    claims.refreshToken = tokens.refreshToken()
+  } catch (e) {
+    return new Response(null, { status: 400 })
+  }
+  // TODO: validate that this accessToken is meant for this app
+  let profile = await fetch('https://api.spotify.com/v1/me', {
+    headers: { 'Authorization': `Bearer ${claims.accessToken}` }
+  })
+  if (!profile.ok) return new Response(null, { status: 400 })
+  claims.profile = await profile.json()
+  if (await logIn(c, "spotify", claims))
+    return c.redirect('/')
+  else
+    return c.redirect('/login?error=spotify')
+})
+
+const dropboxScopes = [
+  'account_info.read',
+  'openid', 'profile',
+  'files.metadata.read',
+  'sharing.read'
+]
+router.get('/dropbox', async (c) => {
+  const dropbox = getProvider(c, 'dropbox')
+  const state = generateState()
+  const url = await dropbox.createAuthorizationURL(state, dropboxScopes)
+  setCookie(c, 'dropbox_oauth_state', state, {
     httpOnly: true,
     secure: isProd(c),
     maxAge: 60 * 10,
@@ -101,40 +151,31 @@ router.get('/spotify', async (c) => {
   return c.redirect(url)
 })
 
-router.get('/spotify/callback', async (c) => {
-  const spotify = _spotify(c)
+router.get('/dropbox/callback', async (c) => {
+  const dropbox = getProvider(c, 'dropbox')
   const { code, state } = c.req.query()
-  const storedState = getCookie(c, "spotify_oauth_state")
-  const verifier = getCookie(c, "spotify_code_verifier")
-  if (state != storedState || [code, state, verifier].includes(undefined)) {
-    console.log("Bad cookie?")
+  const storedState = getCookie(c, "dropbox_oauth_state")
+  if (state != storedState || [code, state].includes(undefined)) {
     return new Response(null, { status: 400 })
   }
-  let accessToken, accessTokenExpiry, refreshToken
+  let claims, accessToken, accessTokenExpiry
   try {
-    let tokens: OAuth2Tokens = await spotify.validateAuthorizationCode(code)
-    accessToken = tokens.accessToken()
-    accessTokenExpiry = tokens.accessTokenExpiresAt()
-    refreshToken = tokens.refreshToken()
+    let tokens: OAuth2Tokens = await dropbox.validateAuthorizationCode(code)
+    claims = decodeIdToken(tokens.idToken())
+    claims.accessToken = tokens.accessToken()
+    claims.accessTokenExpiry = tokens.accessTokenExpiresAt()
   } catch (e) {
     return new Response(null, { status: 400 })
   }
-  // TODO: validate that this isn't a copy of someone else's valid auth code
-  if (await logIn(c, "spotify", {accessToken, accessTokenExpiry, refreshToken}))
-    return c.redirect('/')
-  else
-    return c.redirect('/login?error=spotify')
+  if (claims.aud != dropbox.clientId) {
+   return new Response(null, { status: 400 })
+  }
+  await logIn(c, 'dropbox', claims)
+  return c.redirect('/')
 })
 
+
 async function logIn(c, provider, claims) {
-  if (provider == 'spotify') {
-    let { accessToken, accessTokenExpiry, refreshToken } = claims
-    let profile = await fetch('https://api.spotify.com/v1/me', {
-      headers: { 'Authorization': `Bearer ${accessToken}` }
-    })
-    if (!profile.ok) return false
-    claims = await profile.json()
-  }
   let user = await lookupOAuthLink(c, provider, claims)
   if (user == null) {
     user = await registerUserFromOAuthLink(c, provider, claims)

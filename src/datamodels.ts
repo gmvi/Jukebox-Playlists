@@ -1,4 +1,4 @@
-import { createId } from './util'
+import { createId, checkBadWords } from './util'
 import { getProviderUserId, userProfileFromOAuth } from './auth/providers'
 
 export interface Session {
@@ -19,17 +19,7 @@ const SELECT_OAUTH_LINK = `
   WHERE provider = ? and provider_user_id = ?
   LIMIT 1;`
 export async function lookupOAuthLink(c, provider: string, claims) {
-  let providerUserId
-  switch (provider) {
-    case 'google':
-      providerUserId = claims.sub
-      break
-    case 'spotify':
-      providerUserId = claims.id
-      break
-    default:
-      return null
-  }
+  let providerUserId = getProviderUserId(provider, claims)
   return c.env.DB.prepare(SELECT_OAUTH_LINK)
     .bind(provider, providerUserId)
     .first<User>()

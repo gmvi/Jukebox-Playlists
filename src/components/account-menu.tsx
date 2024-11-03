@@ -12,12 +12,12 @@ export const AccountMenu: FC = () => {
           hx-delete="/login" hx-swap="none"
           _="on htmx:afterRequest reload() the location"
       >
-        Log Out
+        Sign Out
       </button>
     )
   }
   return (
-    <a class="text-md font-semibold text-gray-900" href="/login">Log In &rarr;</a>
+    <a class="text-md font-semibold text-gray-900" href="/login">Sign In &rarr;</a>
   )
 }
 export default AccountMenu;

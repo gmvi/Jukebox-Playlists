@@ -32,4 +32,4 @@ export async function createId(length: number, validatorFn: (candidate: string) 
 
 const dataset = englishDataset
 const matcher = new RegExpMatcher({ ...dataset.build(), ...englishRecommendedTransformers })
-const checkBadWords = (s: string) => matcher.hasMatch(s)
+export const checkBadWords = (s: string) => matcher.hasMatch(s)
